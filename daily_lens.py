@@ -1,49 +1,47 @@
 import os
 import requests
 import urllib.parse
-from google import genai
-from google.genai import types
 
-# 1. Fetch credentials from environment variables
-GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
+# 1. Fetch Telegram credentials
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
-client = genai.Client(api_key=GEMINI_KEY)
+print(f"Checking credentials -> Token present: {bool(TELEGRAM_BOT_TOKEN)}, Chat ID present: {bool(TELEGRAM_CHAT_ID)}")
 
-# 2. Instruct Gemini to conceptualize, format, and self-review
-system_instruction = """
+if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+    raise ValueError(
+        "CRITICAL: Secrets were not passed to Python! "
+        "Verify that .github/workflows/daily_run.yml has the 'env:' block mapped to secrets.TELEGRAMBOTTOKEN."
+    )
+
+ai_prompt = """
 You are an expert Snapchat Lens Studio GenAI prompt engineer.
 Your task:
-1. Pick a high-engagement, trending AR lens aesthetic (e.g., Y2K chrome, cute anime accessories, surreal face distortion, glow neon, aesthetic grain).
-2. Write a precise prompt compatible with Snapchat Lens Studio AI / Easy Lens:
-   - Must use direct imperative instructions (e.g., 'Place...', 'Add...', 'Attach to forehead...').
-   - Clearly state facial placement (e.g., 'sitting on head', 'around eyes', 'mouth open trigger').
-   - Keep it focused on one strong visual transformation.
-3. Self-review: Ensure no vague buzzwords like 'cinematic' or 'photorealistic'. The prompt must be concrete instructions.
-4. Provide a descriptive image prompt for an AI image generator to predict what the user's face will look like with this lens.
+1. Pick a trending AR lens aesthetic (e.g., Y2K chrome, cute anime accessories, surreal face distortion).
+2. Write a precise prompt compatible with Snapchat Lens Studio AI.
+3. Provide a descriptive image prompt for an AI image generator to predict what the user's face will look like with this lens.
 
-Output format strictly:
+Output format strictly like this:
 [CONCEPT]: <1 line description>
 [SNAP PROMPT]: <The exact text to paste into Snap Lens AI>
-[IMAGE PROMPT]: <A portrait photo description showing a person wearing this AR filter, neutral lighting, looking at camera>
+[IMAGE PROMPT]: <A portrait photo description showing a person wearing this AR filter>
 """
 
-response = client.models.generate_content(
-    model='gemini-2.5-flash',
-    contents="Generate today's trending Snapchat AR lens concept, verified Snap AI prompt, and mockup image prompt.",
-    config=types.GenerateContentConfig(
-        system_instruction=system_instruction,
-        temperature=0.8,
-    ),
-)
+print("Requesting AI concept from free text API (No Key Required)...")
+encoded_req = urllib.parse.quote(ai_prompt)
 
-output_text = response.text
+# Pollinations Free Text API
+text_response = requests.get(f"https://text.pollinations.ai/{encoded_req}")
+if text_response.status_code != 200:
+    print(f"TEXT API ERROR: {text_response.text}")
+    text_response.raise_for_status()
 
-# 3. Parse out the prompts
-concept = ""
+output_text = text_response.text
+
+# Parse prompts
+concept = "Trending Snap Lens"
 snap_prompt = ""
-image_prompt = ""
+image_prompt = "portrait with creative AR face filter"
 
 for line in output_text.splitlines():
     if line.startswith("[CONCEPT]:"):
@@ -53,37 +51,38 @@ for line in output_text.splitlines():
     elif line.startswith("[IMAGE PROMPT]:"):
         image_prompt = line.replace("[IMAGE PROMPT]:", "").strip()
 
-# Fallback if structure varies
 if not snap_prompt:
     snap_prompt = output_text
 
-# 4. Generate the Mockup Image using Pollinations (100% Free)
-encoded_prompt = urllib.parse.quote(image_prompt if image_prompt else "portrait with creative AR face filter")
-image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=768&height=1024&nologo=true"
+print("Generating mockup image (Keyless)...")
+encoded_img_prompt = urllib.parse.quote(image_prompt)
+image_url = f"https://image.pollinations.ai/prompt/{encoded_img_prompt}?width=768&height=1024&nologo=true"
 
-# Download the generated mockup
 image_data = requests.get(image_url).content
 with open("mockup.jpg", "wb") as f:
     f.write(image_data)
 
-# 5. Send to Telegram
+print("Sending to Telegram...")
 message_caption = (
-    f"✨ *Daily Snap Lens Concept*\n\n"
-    f"*Trend:* {concept}\n\n"
-    f"*📋 Copy-Paste for Snap Lens AI:*\n`{snap_prompt}`\n\n"
-    f"🔍 *Image Reference:* Compare Snap's output to this mockup to catch errors."
+    f"✨ Daily Snap Lens Concept\n\n"
+    f"Trend: {concept}\n\n"
+    f"📋 Copy-Paste for Snap Lens AI:\n{snap_prompt}\n\n"
+    f"🔍 Image Reference: Compare Snap's output to this mockup to catch errors."
 )
 
 telegram_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
 with open("mockup.jpg", "rb") as photo:
-    requests.post(
+    tg_response = requests.post(
         telegram_url,
         data={
             "chat_id": TELEGRAM_CHAT_ID,
             "caption": message_caption,
-            "parse_mode": "Markdown",
         },
         files={"photo": photo},
     )
+
+if tg_response.status_code != 200:
+    print(f"TELEGRAM ERROR: {tg_response.text}")
+    tg_response.raise_for_status()
 
 print("Daily prompt and mockup successfully sent!")
