@@ -3,28 +3,36 @@ import requests
 import urllib.parse
 
 # 1. Fetch Telegram credentials
-TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-
-print(f"Checking credentials -> Token present: {bool(TELEGRAM_BOT_TOKEN)}, Chat ID present: {bool(TELEGRAM_CHAT_ID)}")
+TELEGRAM_BOT_TOKEN = (
+    os.environ.get("TELEGRAM_BOT_TOKEN")
+    or os.environ.get("TELEGRAMBOTTOKEN")
+    or os.environ.get("BOT_TOKEN")
+)
+TELEGRAM_CHAT_ID = (
+    os.environ.get("TELEGRAM_CHAT_ID")
+    or os.environ.get("TELEGRAMCHATID")
+    or os.environ.get("CHATID")
+    or os.environ.get("CHAT_ID")
+)
 
 if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-    raise ValueError(
-        "CRITICAL: Secrets were not passed to Python! "
-        "Verify that .github/workflows/daily_run.yml has the 'env:' block mapped to secrets.TELEGRAMBOTTOKEN."
-    )
+    raise ValueError("CRITICAL: Secrets were not passed to Python!")
 
+# --- UPGRADED SNAP LENS GENAI PROMPT ---
 ai_prompt = """
-You are an expert Snapchat Lens Studio GenAI prompt engineer.
+You are an elite Snapchat AR Lens Creator and TikTok Trend Analyst.
 Your task:
-1. Pick a trending AR lens aesthetic (e.g., Y2K chrome, cute anime accessories, surreal face distortion).
-2. Write a precise prompt compatible with Snapchat Lens Studio AI.
-3. Provide a descriptive image prompt for an AI image generator to predict what the user's face will look like with this lens.
+1. Identify a highly viral, trending AR lens concept (e.g., 'Crying Makeup', 'Y2K Cyberpunk Glasses', 'Cartoon Face Morph', 'Vintage VHS Cam').
+2. Write an incredibly precise, technical prompt formatted EXACTLY for Snapchat Lens Studio's GenAI Suite.
+   - Snap GenAI works best with literal, physical descriptions of 3D assets, 2D face textures, and ML Face Effects.
+   - Use direct commands (e.g., "Create a 3D asset of...", "Generate a face mesh texture with...").
+   - Describe materials, lighting, and exact placement (e.g., "neon glowing pink plastic", "attached to the cheekbones", "soft studio lighting").
+   - Never use vague buzzwords. Be a literal technical director.
 
 Output format strictly like this:
-[CONCEPT]: <1 line description>
-[SNAP PROMPT]: <The exact text to paste into Snap Lens AI>
-[IMAGE PROMPT]: <A portrait photo description showing a person wearing this AR filter>
+[CONCEPT]: <Name of the Viral Trend>
+[SNAP PROMPT]: <The exact, highly descriptive technical prompt to paste directly into Snap Lens GenAI>
+[IMAGE PROMPT]: <A photorealistic portrait of a person wearing this exact AR filter, looking at the camera>
 """
 
 print("Requesting AI concept from free text API (No Key Required)...")
@@ -39,7 +47,7 @@ if text_response.status_code != 200:
 output_text = text_response.text
 
 # Parse prompts
-concept = "Trending Snap Lens"
+concept = "Viral Snap Lens"
 snap_prompt = ""
 image_prompt = "portrait with creative AR face filter"
 
@@ -64,10 +72,10 @@ with open("mockup.jpg", "wb") as f:
 
 print("Sending to Telegram...")
 message_caption = (
-    f"✨ Daily Snap Lens Concept\n\n"
+    f"🔥 Viral Snap Lens Concept\n\n"
     f"Trend: {concept}\n\n"
-    f"📋 Copy-Paste for Snap Lens AI:\n{snap_prompt}\n\n"
-    f"🔍 Image Reference: Compare Snap's output to this mockup to catch errors."
+    f"📋 Copy-Paste exactly into Snap Lens AI:\n{snap_prompt}\n\n"
+    f"🔍 Image Reference: Try to match this visual target."
 )
 
 telegram_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
